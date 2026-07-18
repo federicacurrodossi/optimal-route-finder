@@ -1,23 +1,92 @@
+# Optimal Route Finder
 
-Final exam for Algorithms and Data structures 2022-2023.
+An efficient C program that finds the **optimal route across a highway** of
+electric-vehicle charging stations — the route with the fewest stops, breaking
+ties in favor of stations closer to the start of the highway.
 
-Consider a highway described as a sequence of service stations. 
-Each service station is located at a distance from the start of the highway, expressed in kilometers by a non-negative integer. 
-There are no two service stations with the same distance: each service station is therefore uniquely identified by its distance from the start of the highway.
+Built as the final project for the **Algorithms and Data Structures**
+(*Algoritmi e Principi dell'Informatica*) course at Politecnico di Milano,
+2022–2023. The project is graded on both **correctness** and **efficiency**
+(time and memory) against large hidden test files.
 
-Each service station has a fleet of electric rental vehicles. Each vehicle is distinguished by its range, given by a full battery charge, expressed in kilometers as a positive integer. 
-The fleet of vehicles at a single station includes at most 512 vehicles. Renting a car from station 's' allows you to reach all stations whose distance from 's' is less than or equal to the range of the vehicle.
+## The problem
 
-A journey is identified by a sequence of service stations where the driver stops. It starts at one service station and ends at another, passing through zero or more intermediate stations. 
-It is assumed that the driver cannot backtrack during the journey and rents a new car whenever they stop at a service station. Therefore, given two consecutive stops,'s' and 't', 't' must always be farther from the start than 's', and 't' must be reachable using one of the vehicles available at 's'.
+A highway is a line of service stations, each identified by its distance from
+the start (a unique non-negative integer). Every station has a fleet of up to
+512 electric rental cars, and each car has a **range** — the maximum distance
+it can travel on a full charge. Renting a car at a station lets you reach any
+station within that car's range.
 
-The project’s objective is as follows: given a pair of stations, plan the route with the fewest stops between them. 
-If there are multiple routes with the same minimum number of stops (i.e., ties), the route that favors stops with shorter distances from the start of the highway must be chosen. 
-In other words, consider the set of n tie-breaking routes P = {p1, p2, . . . pn}, where each route is a tuple of m elements pi = ⟨pi,1, pi,2, . . . pi,m⟩, corresponding to the distance from the start of the highway for each stop in the order of travel. 
-The unique route pi must be chosen such that there does not exist another pj with the same k final stops preceded by a stop with a shorter distance, i.e., ∄j, k : ⟨pi,m−k+1, . . . pi,m⟩ = ⟨pj,m−k+1, . . . pj,m⟩ ∧ pj,m−k < pi,m−k.
+The program processes a stream of commands that build and modify the highway
+(add/remove stations, add/scrap cars) and answer routing queries. For a
+routing query between two stations, it must return the route with the
+**minimum number of stops**. When several routes tie on the number of stops, it
+must pick the one that prefers earlier stops closer to the start of the
+highway.
 
-Below is an example of a highway. In this example, the correct route between the station at distance 20 and the one at distance 50 is 20 → 30 → 50 (and not 20 → 45 → 50). 
-Conversely, 50 → 30 → 20 is the correct route between the station at distance 50 and the one at distance 20 (thus in the direction from right to left).
+### Example
 
-![image](https://github.com/user-attachments/assets/31bf0eb9-4cbf-44aa-8c88-efe58a3732e7)
+```
+        20      30      45      50      distance (km)
+        ●───────●───────●───────●
+        │       │               │
+ route: └──►────┴──────►────────┘
+             20 → 30 → 50   ✓   (chosen)
+             20 → 45 → 50   ✗   (same stop count, but 45 > 30)
+```
 
+Both `20 → 30 → 50` and `20 → 45 → 50` reach the destination in two hops, but
+the tie-break rule prefers `30` over `45` because it's closer to the start.
+Traveling the other way, `50 → 30 → 20` is the correct right-to-left route.
+
+## Commands
+
+The program reads commands from standard input and prints one line of output
+per command:
+
+| Command | Meaning |
+|---------|---------|
+| `aggiungi-stazione <dist> <n> <r1>…<rn>` | add a station at `dist` with `n` cars of the given ranges |
+| `demolisci-stazione <dist>` | remove the station at `dist` |
+| `aggiungi-auto <dist> <range>` | add one car of the given range to a station |
+| `rottama-auto <dist> <range>` | scrap one car of the given range from a station |
+| `pianifica-percorso <start> <dest>` | print the optimal route between two stations |
+
+*(Command keywords are in Italian because they are the exact input format the
+project is graded against.)*
+
+## Approach
+
+The solution combines a balanced-ish search structure with a greedy routing
+strategy:
+
+- **Stations → binary search tree (BST).** Stations are stored in a BST keyed
+  by distance, so adding, removing, and looking up a station are all
+  `O(log n)` on average rather than `O(n)`. In-order **successor** and
+  **predecessor** operations give the next/previous station along the highway
+  in either direction — exactly what route-walking needs.
+- **Cars → per-station array.** Each station keeps its car ranges in a fixed
+  array; the only value that matters for routing is the **maximum range**,
+  i.e. how far the station's best car can travel.
+- **Routing → greedy shortest-hop.** To plan a route, the algorithm greedily
+  chooses, at each step, the stop that makes the most progress toward the
+  destination in a single hop — which yields the minimum number of stops.
+- **Tie-breaking → refinement passes.** Traveling right-to-left, a plain greedy
+  pass can produce a minimum-stop route that isn't the one the tie-break rule
+  wants. The program then runs refinement passes that push each intermediate
+  stop toward the smallest valid distance, so that among all minimum-stop
+  routes it returns the one preferred by the rule.
+
+Reachability between two stations is checked separately (walking station by
+station and confirming each gap is bridgeable by the best available car)
+before a route is planned, so impossible queries are answered immediately.
+
+## Building and running
+
+```bash
+gcc -Wall -Wextra -O2 -std=c11 route_planner.c -o route_planner
+./route_planner < input.txt
+```
+
+The program reads commands from standard input and writes results to standard
+output, so it can be run directly against a test file as shown above.
