@@ -1,5 +1,5 @@
 
-Final exam in algorithms and data structures 2022-2023.
+Final exam for Algorithms and Data structures 2022-2023.
 
 Consider a highway described as a sequence of service stations. 
 Each service station is located at a distance from the start of the highway, expressed in kilometers by a non-negative integer. 
